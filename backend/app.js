@@ -47,11 +47,11 @@ app.use(
 	})
 );
 
-// CORS configuration - adjust origin to match your React app's URL
+
 app.use(
 	cors({
-		origin: 'http://localhost:5173', // Replace with your React app URL
-		credentials: true, // Important for sessions/cookies to work
+		origin: 'http://localhost:5173', 
+		credentials: true, 
 	})
 );
 
@@ -98,24 +98,24 @@ app.post('/api/login', async (req, res) => {
 });
 
 app.post('/api/signup', async (req, res) => {
-	const { email, password, fullname } = req.body;
+	const { fullname, email, setpassword, confirmpassword } = req.body;
 	try {
-		// Check if user already exists
+		if (!fullname || !email || !setpassword || !confirmpassword) {
+			return res.status(400).json({ error: 'All fields are required' });
+		}
+		if (setpassword !== confirmpassword) {
+			return res.status(400).json({ error: 'Passwords do not match' });
+		}
 		const existingUser = await LoginData.findOne({ where: { email } });
 		if (existingUser) {
 			return res.status(409).json({ error: 'Email already registered' });
 		}
-
-		// Hash password
-		const hashedPassword = await bcrypt.hash(password, 10);
-
-		// Create user
+		const hashedPassword = await bcrypt.hash(setpassword, 10);
 		const newUser = await LoginData.create({
 			email,
 			password: hashedPassword,
+			fullname,
 		});
-
-		// Create session
 		req.session.loggedInUser = { id: newUser.id, email: newUser.email };
 		res.status(201).json({ success: true, user: { email: newUser.email } });
 	} catch (err) {
