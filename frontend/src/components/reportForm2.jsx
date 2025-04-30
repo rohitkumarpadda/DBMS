@@ -1,6 +1,7 @@
 import "./report.css";
 
 export default function ReportForm1() {
+  document.title = 'Lost And Found | Found Report';
   return (
     <div className="form-page">
         <header>
@@ -11,8 +12,8 @@ export default function ReportForm1() {
                 <h2>Lost & Found</h2>
               </div>
               <div id="aboutusnavbar2">
-                <a href="/">Home</a>
-                <img src="sun.svg"></img>
+                <a href="/Home">Home</a>
+              	<a href='/AboutUs'>About Us</a>
               </div>
             </div>
           </nav>
@@ -20,17 +21,16 @@ export default function ReportForm1() {
       <div className="form">
         <div className="form-header">
           <h1 className="form-header-title">
-            Can't Find Which you are looking for!!!
+          Great! You found something?
           </h1>
           <p className="form-header-subtitle">
-            Just fill out the form below and we will try our best to find it for
-            you...
+          Report the Found Item here
           </p>
         </div>
 
         <div className="form-cont">
           <div className="form-cont-img-cont">
-            <img src="LostImg1.avif"/>
+            <img src="RegistrationImage.avif" id="reportformimg" alt="Lost Item" />
           </div>
           <div className="form-contents">
             <h2 className="form-title">Report the Lost Item here</h2>
@@ -92,7 +92,7 @@ export default function ReportForm1() {
       </div>
       
       <div id="aboutusbottom">
-          &copy; 2025 Your Company Name. All rights reserved
+          &copy; IIITA LOST AND FOUND. All rights reserved
         </div>
     </div>
   );

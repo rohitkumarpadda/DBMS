@@ -225,7 +225,59 @@ app.get('/api/logout', (req, res) => {
 	});
 });
 
-// File upload configuration
+const forgotPasswordOtpStore = {};
+
+app.post('/api/forgot-password', async (req, res) => {
+	const { email } = req.body;
+
+	if (!email) {
+		return res.status(400).json({ error: 'Email is required' });
+	}
+
+	try {
+		const user = await LoginData.findOne({ where: { email } });
+		if (!user) {
+			return res.status(404).json({ error: 'Email not registered' });
+		}
+
+		const otp = Math.floor(100000 + Math.random() * 900000).toString();
+		forgotPasswordOtpStore[email] = { otp, email };
+		await transporter.sendMail({
+			from: process.env.GMAIL_USER,
+			to: email,
+			subject: 'Your OTP for Password Reset',
+			text: `Your OTP is: ${otp}`,
+		});
+		res.status(200).json({ success: true, message: 'OTP sent to your email' });
+	} catch (err) {
+		console.error(err);
+		res.status(500).json({ error: 'Internal Server Error' });
+	}
+});
+
+app.post('/api/reset-password', async (req, res) => {
+	const { email, otp, newPassword } = req.body;
+	if (!email || !otp || !newPassword) {
+		return res.status(400).json({ error: 'All fields are required' });
+	}
+	const storedData = forgotPasswordOtpStore[email];
+	if (!storedData || storedData.otp !== otp) {
+		return res.status(400).json({ error: 'Invalid OTP' });
+	}
+	try {
+		const hashedPassword = await bcrypt.hash(newPassword, 10);
+		await LoginData.update({ password: hashedPassword }, { where: { email } });
+		delete forgotPasswordOtpStore[email];
+
+		res
+			.status(200)
+			.json({ success: true, message: 'Password reset successfully' });
+	} catch (err) {
+		console.error(err);
+		res.status(500).json({ error: 'Internal Server Error' });
+	}
+});
+
 const storage = multer.diskStorage({
 	destination: 'uploads/',
 	filename: (req, file, cb) => {

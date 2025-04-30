@@ -2,7 +2,7 @@ import { useState } from 'react';
 import './report.css';
 
 export default function ReportForm() {
-	document.title = 'Lost And Found | Report';
+	document.title = 'Lost And Found | Lost Report';
 
 	const [formData, setFormData] = useState({
 		name: '',
@@ -67,7 +67,7 @@ export default function ReportForm() {
 							<h2>Lost & Found</h2>
 						</div>
 						<div id='aboutusnavbar2'>
-							<a href='/'>Home</a>
+							<a href='/Home'>Home</a>
 							<a href='/AboutUs'>About Us</a>
 						</div>
 					</div>
@@ -176,7 +176,7 @@ export default function ReportForm() {
 			</div>
 
 			<div id='aboutusbottom'>
-				&copy; 2025 Your Company Name. All rights reserved
+				&copy; IIITA LOST AND FOUND. All rights reserved
 			</div>
 		</div>
 	);

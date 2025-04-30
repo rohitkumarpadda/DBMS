@@ -49,7 +49,7 @@ function Home() {
 							</div>
 						</div>
 						<div id='aboutusnavbar2'>
-							<a href='/'>Home</a>
+							<a href='/ViewReports'>Reports</a>
 							<a href='/AboutUs'>About Us</a>
 							<button id='homepagelogoutlink' onClick={handleLogout}>
 								<img src='log-out (1).svg' id='homepagelogout' alt='Logout' />
@@ -121,7 +121,9 @@ function Home() {
 								report the found item.
 							</p>
 							<div>
-								<button className='found-button'>Report</button>
+								<button className='found-button' onClick={() => {
+										window.location.href = '/ReportForm';
+									}}>Report</button>
 							</div>
 						</div>
 						<div className='found-image'>

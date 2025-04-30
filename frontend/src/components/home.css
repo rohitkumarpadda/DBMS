@@ -234,3 +234,11 @@ html,
   margin-bottom: 0px;
   margin-top: 20px;
 }
+#homepagelogoutlink{
+  border-radius:50px;
+  background-color:rgb(5, 8, 44) ;
+  border:1px solid rgb(5, 8, 44);
+}
+#homepagelogout{
+  padding:0.2rem;
+}

@@ -87,6 +87,7 @@ const SignUp = () => {
 			</header>
 			<section id='signupsectionmain'>
 				<img src='LostFoundImg.webp' id='signupmainimg' alt='Lost and Found' />
+				<div id="signupmaindiv">
 				<section id='signupsection'>
 					<h1>Create An Account</h1>
 					<p>Join Lost & Found to report and recover lost items</p>
@@ -146,8 +147,8 @@ const SignUp = () => {
 							<button type='submit'>Create Account</button>
 						</form>
 					) : (
-						<form onSubmit={handleOtpSubmit}>
-							<label htmlFor='otp'>Enter OTP</label>
+						<form onSubmit={handleOtpSubmit} id="signupotpform">
+							<label htmlFor='otp'>Enter OTP : </label>
 							<input
 								type='text'
 								id='otp'
@@ -160,7 +161,8 @@ const SignUp = () => {
 						</form>
 					)}
 					{message && <p>{message}</p>}
-				</section>
+					</section>
+					</div>
 			</section>
 		</>
 	);
