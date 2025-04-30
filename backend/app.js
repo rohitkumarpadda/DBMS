@@ -47,11 +47,10 @@ app.use(
 	})
 );
 
-
 app.use(
 	cors({
-		origin: 'http://localhost:5173', 
-		credentials: true, 
+		origin: 'http://localhost:5173',
+		credentials: true,
 	})
 );
 
@@ -135,11 +134,18 @@ app.get('/api/auth/check', (req, res) => {
 	}
 });
 
-app.post('/api/logout', (req, res) => {
+app.get('/api/logout', (req, res) => {
 	req.session.destroy((err) => {
-		if (err) return res.status(500).json({ error: 'Logout failed' });
-		res.clearCookie('connect.sid');
-		res.json({ success: true });
+		if (err) {
+			return res.status(500).json({ error: 'Logout failed' });
+		}
+		res.clearCookie('connect.sid', {
+			path: '/',
+			httpOnly: true,
+			secure: process.env.NODE_ENV === 'production',
+			sameSite: 'lax',
+		});
+		res.json({ success: true, redirect: 'http://localhost:5173/' });
 	});
 });
 
