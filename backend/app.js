@@ -1,6 +1,6 @@
 require('dotenv').config();
 const express = require('express');
-const cors = require('cors'); // Add CORS support
+const cors = require('cors');
 const path = require('path');
 const bodyParser = require('body-parser');
 const bcrypt = require('bcrypt');
@@ -15,6 +15,7 @@ const { Op } = require('sequelize');
 const natural = require('natural');
 const tokenizer = new natural.WordTokenizer();
 const stopwords = require('stopword');
+const nodemailer = require('nodemailer');
 
 const app = express();
 
@@ -79,6 +80,38 @@ const isLoggedIn = (req, res, next) => {
 	}
 };
 
+const transporter = nodemailer.createTransport({
+	service: 'gmail',
+	auth: {
+		user: process.env.GMAIL_USER,
+		pass: process.env.GMAIL_PASS,
+	},
+});
+
+app.post('/api/notify', async (req, res) => {
+	const { to, subject, text } = req.body;
+
+	if (!to || !subject || !text) {
+		return res.status(400).json({ error: 'All fields are required' });
+	}
+
+	try {
+		await transporter.sendMail({
+			from: process.env.GMAIL_USER,
+			to,
+			subject,
+			text,
+		});
+
+		res
+			.status(200)
+			.json({ success: true, message: 'Notification sent successfully' });
+	} catch (error) {
+		console.error('Error sending email:', error);
+		res.status(500).json({ error: 'Failed to send notification' });
+	}
+});
+
 // API endpoints
 // Authentication routes
 app.post('/api/login', async (req, res) => {
@@ -96,6 +129,8 @@ app.post('/api/login', async (req, res) => {
 	}
 });
 
+const otpStore = {}; // Temporary in-memory storage for OTPs
+
 app.post('/api/signup', async (req, res) => {
 	const { fullname, email, setpassword, confirmpassword } = req.body;
 	try {
@@ -109,14 +144,55 @@ app.post('/api/signup', async (req, res) => {
 		if (existingUser) {
 			return res.status(409).json({ error: 'Email already registered' });
 		}
-		const hashedPassword = await bcrypt.hash(setpassword, 10);
-		const newUser = await LoginData.create({
-			email,
-			password: hashedPassword,
-			fullname,
+
+		// Generate OTP
+		const otp = Math.floor(100000 + Math.random() * 900000).toString();
+		otpStore[email] = { otp, fullname, email, setpassword }; // Store OTP and user data temporarily
+
+		// Send OTP via email
+		await transporter.sendMail({
+			from: process.env.GMAIL_USER,
+			to: email,
+			subject: 'Your OTP for Lost & Found Account Verification',
+			text: `Your OTP is: ${otp}`,
 		});
+
+		res.status(200).json({ success: true, message: 'OTP sent to your email' });
+	} catch (err) {
+		console.error(err);
+		res.status(500).json({ error: 'Internal Server Error' });
+	}
+});
+
+app.post('/api/verify-otp', async (req, res) => {
+	const { email, otp } = req.body;
+
+	if (!email || !otp) {
+		return res.status(400).json({ error: 'Email and OTP are required' });
+	}
+
+	const storedData = otpStore[email];
+	if (!storedData || storedData.otp !== otp) {
+		return res.status(400).json({ error: 'Invalid OTP' });
+	}
+
+	try {
+		const hashedPassword = await bcrypt.hash(storedData.setpassword, 10);
+		const newUser = await LoginData.create({
+			email: storedData.email,
+			password: hashedPassword,
+			fullname: storedData.fullname,
+		});
+
 		req.session.loggedInUser = { id: newUser.id, email: newUser.email };
-		res.status(201).json({ success: true, user: { email: newUser.email } });
+
+		delete otpStore[email];
+
+		res.status(201).json({
+			success: true,
+			message: 'Account verified and created',
+			user: { email: newUser.email },
+		});
 	} catch (err) {
 		console.error(err);
 		res.status(500).json({ error: 'Internal Server Error' });

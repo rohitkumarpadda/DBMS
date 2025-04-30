@@ -10,7 +10,8 @@ const SignUp = () => {
 		setpassword: '',
 		confirmpassword: '',
 	});
-
+	const [otp, setOtp] = useState('');
+	const [isOtpSent, setIsOtpSent] = useState(false);
 	const [message, setMessage] = useState('');
 
 	const handleChange = (e) => {
@@ -26,18 +27,41 @@ const SignUp = () => {
 				headers: {
 					'Content-Type': 'application/json',
 				},
-				credentials: 'include',
 				body: JSON.stringify(formData),
 			});
 
 			const data = await response.json();
 			if (response.ok) {
-				setMessage('Account created successfully! Redirecting to Home...');
+				setIsOtpSent(true);
+				setMessage('OTP sent to your email. Please verify.');
+			} else {
+				setMessage(data.error || 'Error creating account');
+			}
+		} catch (error) {
+			console.error('Error:', error);
+			setMessage('Something went wrong. Please try again.');
+		}
+	};
+
+	const handleOtpSubmit = async (e) => {
+		e.preventDefault();
+		try {
+			const response = await fetch('http://localhost:5000/api/verify-otp', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify({ email: formData.email, otp }),
+			});
+
+			const data = await response.json();
+			if (response.ok) {
+				setMessage('Account verified and created! Redirecting to Home...');
 				setTimeout(() => {
 					window.location.href = '/Home';
 				}, 2000);
 			} else {
-				setMessage(data.error || 'Error creating account');
+				setMessage(data.error || 'Invalid OTP');
 			}
 		} catch (error) {
 			console.error('Error:', error);
@@ -66,64 +90,76 @@ const SignUp = () => {
 				<section id='signupsection'>
 					<h1>Create An Account</h1>
 					<p>Join Lost & Found to report and recover lost items</p>
-					<form onSubmit={handleSubmit}>
-						<label htmlFor='fullname'>Full Name</label>
-						<div>
-							<img src='user (2).svg' alt='User Icon' />
+					{!isOtpSent ? (
+						<form onSubmit={handleSubmit}>
+							<label htmlFor='fullname'>Full Name</label>
+							<div>
+								<img src='user (2).svg' alt='User Icon' />
+								<input
+									type='text'
+									id='fullname'
+									name='fullname'
+									value={formData.fullname}
+									onChange={handleChange}
+									required
+								/>
+							</div>
+
+							<label htmlFor='email'>Email</label>
+							<div>
+								<img src='mail (2).svg' alt='Mail Icon' />
+								<input
+									type='email'
+									id='email'
+									name='email'
+									value={formData.email}
+									onChange={handleChange}
+									required
+								/>
+							</div>
+
+							<label htmlFor='setpassword'>Set Password</label>
+							<div>
+								<img src='lock.svg' alt='Lock Icon' />
+								<input
+									type='password'
+									id='setpassword'
+									name='setpassword'
+									value={formData.setpassword}
+									onChange={handleChange}
+									required
+								/>
+							</div>
+
+							<label htmlFor='confirmpassword'>Confirm Password</label>
+							<div>
+								<img src='lock.svg' alt='Lock Icon' />
+								<input
+									type='password'
+									id='confirmpassword'
+									name='confirmpassword'
+									value={formData.confirmpassword}
+									onChange={handleChange}
+									required
+								/>
+							</div>
+							<button type='submit'>Create Account</button>
+						</form>
+					) : (
+						<form onSubmit={handleOtpSubmit}>
+							<label htmlFor='otp'>Enter OTP</label>
 							<input
 								type='text'
-								id='fullname'
-								name='fullname'
-								value={formData.fullname}
-								onChange={handleChange}
+								id='otp'
+								name='otp'
+								value={otp}
+								onChange={(e) => setOtp(e.target.value)}
 								required
 							/>
-						</div>
-
-						<label htmlFor='email'>Email</label>
-						<div>
-							<img src='mail (2).svg' alt='Mail Icon' />
-							<input
-								type='email'
-								id='email'
-								name='email'
-								value={formData.email}
-								onChange={handleChange}
-								required
-							/>
-						</div>
-
-						<label htmlFor='setpassword'>Set Password</label>
-						<div>
-							<img src='lock.svg' alt='Lock Icon' />
-							<input
-								type='password'
-								id='setpassword'
-								name='setpassword'
-								value={formData.setpassword}
-								onChange={handleChange}
-								required
-							/>
-						</div>
-
-						<label htmlFor='confirmpassword'>Confirm Password</label>
-						<div>
-							<img src='lock.svg' alt='Lock Icon' />
-							<input
-								type='password'
-								id='confirmpassword'
-								name='confirmpassword'
-								value={formData.confirmpassword}
-								onChange={handleChange}
-								required
-							/>
-						</div>
-						<button type='submit'>Create Account</button>
-						{message && <p>{message}</p>}
-						<p>
-							Already Have An Account? <a href='/'>Login</a>
-						</p>
-					</form>
+							<button type='submit'>Verify OTP</button>
+						</form>
+					)}
+					{message && <p>{message}</p>}
 				</section>
 			</section>
 		</>
