@@ -1,0 +1,311 @@
+*{
+    padding:0;
+    margin:0;
+}
+body{
+    background-color:rgb(255, 255, 255);
+    font-family: Arial, Helvetica, sans-serif;
+}
+
+#previewnavbar1 img{
+    height:5rem;
+}
+#previewnavbar1{
+    display:flex;
+    align-items:center;
+}
+#previewnavbar{
+    display:flex;
+    align-items: center;
+    justify-content: space-between;
+    background-color: rgb(5, 8, 44);
+    padding:0.5rem 5rem;
+    color:white;
+}
+#previewnavbar2{
+    width:10rem;
+    display:flex;
+    justify-content: space-around;
+    align-items: center;
+    font-size:1.1rem;
+}
+#previewnavbar2 a:hover{
+    color:red;
+    cursor: pointer;
+}
+#previewnavbar2 img{
+    background-color: red;
+    padding:0.5rem;
+    border-radius:50px;
+}
+#previewnavbar2 img:hover{
+    background-color:rgb(242, 107, 107);
+}
+#previewsection1{
+    margin:5rem;
+    display:flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+#previewsection1div1{
+    display:flex;
+    flex-direction: column;
+    margin-right:5rem;
+    color:rgb(7, 12, 60);
+}
+#previewsection1div1 h4{
+    border:1px solid rgb(150, 150, 48);
+    background-color: rgb(238, 238, 121);
+    padding:0.2rem 0rem;
+    
+    font-size:0.9rem;
+    font-weight: 100;
+    border-radius:10px;
+    animation:headingmover 10s linear 0.1s infinite;
+}
+@keyframes headingmover{
+    0%{
+      padding-left:13.5%;
+    }
+    50%{
+      padding-left:60%;
+    }
+    100%{
+       padding-left:13.5%;
+    }
+}
+#previewsection1div1 h1{
+    font-size:3.2rem;
+    margin-top:2rem;
+}
+#previewsection1div1 p{
+    font-size:1.2rem;
+    margin-top:2rem;
+}
+#previewsection1div1 button{
+    background-color:rgb(7, 12, 60);
+    width:10rem;
+    color:white;
+    font-size:1.1rem;
+    padding:0.5rem;
+    margin-top:2rem;
+    border-radius:10px;
+}
+#previewsection1div1 button:hover{
+    background-color:rgb(42, 51, 116) ;
+}
+#previewsection1div2{
+    animation:imagemoving 2s linear 0.1s infinite;
+}
+@keyframes  imagemoving {
+    0%{
+       margin-top:0rem;
+    }
+    50%{
+        margin-top:2rem;
+    }
+    100%{
+       margin-top:0rem;
+    }
+}
+a{
+    text-decoration:none;
+    color:white;
+}
+#previewsection2{
+    display:flex;
+    flex-direction: column;
+    margin:5rem;
+    align-items: center;
+    color:rgb(7, 12, 60);
+    background-color: rgb(218, 218, 218);
+    padding:1rem 0rem;
+    padding-bottom:1.5rem;
+    border-radius:10px;
+}
+#previewsection2 h1{
+  font-size:3.2rem;
+}
+#previewsection2 p{
+  font-size:1.5rem;
+}
+#previewsection2div1{
+    display:flex;
+    margin-bottom:1.5rem;
+}
+#previewsection2div1 img{
+    width:23rem;
+    transition:all 0.5s linear 0.1s;
+    position: relative;
+}
+#previewsection2div1 img:hover{
+    transform: scale(1.05);
+}
+#previewsection2div2{
+    margin-top:1.5rem;
+    margin-bottom:1rem;
+    background-color: white;
+    padding:1rem;
+    border-radius:10px;
+}
+.previewsection2points{
+    display: flex;
+    margin-top:1.5rem;
+
+}
+.previewsection2points img{
+    background-color: red;
+}
+.previewsection2points p{
+    margin-left:1rem;
+}
+#previewparentdiv{
+    display:flex;
+    justify-content:center;
+    margin-bottom:2rem;
+}
+#previewdiv1{
+    display:flex;
+    flex-direction: column;
+    align-items: center;
+    background-color:rgb(218, 218, 218);
+    padding:2rem;
+    border-radius: 10px;
+}
+#previewdiv1 h1{
+    font-size:2rem;
+    margin-bottom:1rem;
+    color:rgb(7, 12, 60);
+}
+#previewdiv1 button{
+    width:8rem;
+    background-color:rgb(7, 12, 60) ;
+    color:white;
+    font-size:1.1rem;
+    padding:0.5rem;
+    border-radius: 10px;
+}  
+#previewdiv1 button:hover{
+    width:8rem;
+    background-color:rgb(42,51,116);
+}  
+#previewparentdiv1{
+    display:flex;
+    justify-content: center;
+}
+#previewdiv2{
+    display:flex;
+    justify-content:space-around;
+    width:10rem;
+}
+#previewdiv2 img{
+    background-color:red;
+    padding:0.5rem;
+    border-radius:50px;
+    margin-bottom:2rem;
+}
+#previewdiv2 img:hover{
+    background-color:rgb(242, 107, 107);
+}
+#previewbottom{
+    display: flex;
+    justify-content: center;
+    background-color:rgb(7, 12, 60);
+    color:white;
+    padding:0.5rem;
+}
+*{
+    margin:0px;
+    padding:0px;
+    font-family: Arial;
+}
+
+#loginformmaindiv{
+    background-color:rgba(255, 255, 255,0.2);
+    height:100vh;
+    width: 100vw;
+    position:absolute;
+    backdrop-filter: blur(10px);
+    overflow-y:hidden;
+}
+#loginformsection {
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    width: 30rem;
+    align-items: center;
+    background-color: rgba(7, 12, 60); /* semi-transparent */
+    padding: 1rem;
+    padding-bottom: 2rem;
+    margin: 10rem 34rem;
+    border-radius: 10px;
+    color: white;
+    backdrop-filter: blur(10px);
+}
+
+#loginformsection h2,p{
+    margin-top:0.5rem;
+}
+#loginformsection p{
+    font-size:1.1rem;
+}
+#loginformx{
+    display:flex;
+    justify-content:end;
+    align-items: end;
+    width:100%;
+}
+#loginformx img{
+    background-color: white;
+    border-radius: 50px;
+    padding:0.1rem;
+    cursor: pointer;
+}
+#loginformsection form div{
+    display:flex;
+    display: flex;
+    justify-content:space-around;
+    align-items: center;
+    margin-top:0.5rem;
+    margin-bottom:1rem;
+}
+#loginformsection form{
+    margin-top:1.5rem;
+    width:90%;
+}
+#loginformsection form input{
+    width:90%;
+    padding:0.5rem;
+    font-size:1rem;
+    border-radius: 10px;
+    border:1px solid white;
+}
+#loginformsection label{
+   font-size:1.2rem;
+}
+#loginformpassword input{
+    margin-left:0.9rem;
+    margin-right:0.4rem;
+}
+#loginformabtn{
+    display:flex;
+    flex-direction: column;
+}
+#loginformabtn a{
+    font-size:1.1rem;
+    text-decoration: none;
+    margin-bottom:1rem;
+}
+#loginformsection a:hover{
+  color:red;
+}
+#loginformabtn button{
+    width:100%;
+    padding:0.3rem;
+    font-size:1.1rem;
+    border-radius:10px;
+    border:1px solid white;
+    margin-bottom:0.5rem;
+}

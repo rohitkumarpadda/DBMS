@@ -1,0 +1,183 @@
+import { useState } from 'react';
+import './report.css';
+
+export default function ReportForm() {
+	document.title = 'Lost And Found | Report';
+
+	const [formData, setFormData] = useState({
+		name: '',
+		mobileNo: '',
+		category: 'electronics',
+		item: '',
+		dateLost: '',
+		description: '',
+		image: null,
+	});
+
+	const handleChange = (e) => {
+		const { name, value, type, files } = e.target;
+		setFormData({
+			...formData,
+			[name]: type === 'file' ? files[0] : value,
+		});
+	};
+
+	const handleSubmit = async (e) => {
+		e.preventDefault();
+
+		const formDataObj = new FormData();
+		formDataObj.append('Name', formData.name);
+		formDataObj.append('ContactNo', formData.mobileNo);
+		formDataObj.append('category', formData.category);
+		formDataObj.append('Item', formData.item);
+		formDataObj.append('DateLost', formData.dateLost);
+		formDataObj.append('Description', formData.description);
+		if (formData.image) {
+			formDataObj.append('Image', formData.image);
+		}
+
+		try {
+			const response = await fetch('http://localhost:5000/api/reportLost', {
+				method: 'POST',
+				body: formDataObj,
+				credentials: 'include', // Ensures cookies (like session) are sent
+			});
+
+			const data = await response.json();
+			console.log(data);
+			if (response.ok) {
+				alert('Item reported successfully!');
+				window.location.href = data.redirect;
+			} else {
+				alert(data.error || 'Error reporting item.');
+			}
+		} catch (error) {
+			console.error(error);
+			alert('Error reporting item.');
+		}
+	};
+
+	return (
+		<div className='form-page'>
+			<header>
+				<nav>
+					<div id='aboutusnavbar'>
+						<div id='aboutusnavbar1'>
+							<img src='/iiitaLogo.png' alt='Logo' />
+							<h2>Lost & Found</h2>
+						</div>
+						<div id='aboutusnavbar2'>
+							<a href='/'>Home</a>
+							<a href='/AboutUs'>About Us</a>
+						</div>
+					</div>
+				</nav>
+			</header>
+			<div className='form'>
+				<div className='form-header'>
+					<h1 className='form-header-title'>
+						Can't Find What You're Looking For?
+					</h1>
+					<p className='form-header-subtitle'>
+						Just fill out the form below, and we will try our best to find it
+						for you.
+					</p>
+				</div>
+
+				<div className='form-cont'>
+					<div className='form-cont-img-cont'>
+						<img src='LostImg1.avif' id='reportformimg' alt='Lost Item' />
+					</div>
+					<div className='form-contents'>
+						<form className='lost-item-form' onSubmit={handleSubmit}>
+							<h2 className='form-title'>Report the Lost Item here</h2>
+							<label className='form-label'>
+								Name:
+								<input
+									type='text'
+									name='name'
+									placeholder='Your Name Here'
+									className='form-input'
+									value={formData.name}
+									onChange={handleChange}
+								/>
+							</label>
+							<label className='form-label'>
+								Mobile No.:
+								<input
+									type='text'
+									name='mobileNo'
+									placeholder='Enter Mobile No.'
+									className='form-input'
+									value={formData.mobileNo}
+									onChange={handleChange}
+								/>
+							</label>
+							<label className='form-label'>
+								Select category:
+								<select
+									name='category'
+									className='form-input'
+									value={formData.category}
+									onChange={handleChange}
+								>
+									<option value='electronics'>Electronics</option>
+									<option value='documents'>Documents</option>
+									<option value='clothing'>Clothing</option>
+									<option value='others'>Others</option>
+								</select>
+							</label>
+							<label className='form-label'>
+								Item:
+								<input
+									type='text'
+									name='item'
+									placeholder='Enter Lost Item'
+									className='form-input'
+									value={formData.item}
+									onChange={handleChange}
+								/>
+							</label>
+							<label className='form-label'>
+								When the Item was Lost:
+								<input
+									type='date'
+									name='dateLost'
+									className='form-input'
+									value={formData.dateLost}
+									onChange={handleChange}
+								/>
+							</label>
+							<label className='form-label'>
+								About Lost Item:
+								<textarea
+									name='description'
+									placeholder='Give a short description about lost item'
+									className='form-textarea'
+									value={formData.description}
+									onChange={handleChange}
+								></textarea>
+							</label>
+							<label className='form-label'>
+								Upload an Image of Lost Item:
+								<input
+									type='file'
+									name='image'
+									className='form-input'
+									onChange={handleChange}
+								/>
+							</label>
+							<button type='submit' className='form-submit-button'>
+								Submit
+							</button>
+						</form>
+					</div>
+				</div>
+			</div>
+
+			<div id='aboutusbottom'>
+				&copy; 2025 Your Company Name. All rights reserved
+			</div>
+		</div>
+	);
+}

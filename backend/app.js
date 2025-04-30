@@ -1,0 +1,294 @@
+require('dotenv').config();
+const express = require('express');
+const cors = require('cors'); // Add CORS support
+const path = require('path');
+const bodyParser = require('body-parser');
+const bcrypt = require('bcrypt');
+const session = require('express-session');
+const rateLimit = require('express-rate-limit');
+const multer = require('multer');
+const sequelize = require('./db');
+const LoginData = require('./models/loginData');
+const FoundItem = require('./models/foundItem');
+const LostItem = require('./models/lostItem');
+const { Op } = require('sequelize');
+const natural = require('natural');
+const tokenizer = new natural.WordTokenizer();
+const stopwords = require('stopword');
+
+const app = express();
+
+// Database connection
+(async () => {
+	try {
+		await sequelize.authenticate();
+		console.log('MySQL connection established.');
+		await sequelize.sync({ alter: true });
+	} catch (error) {
+		console.error('Unable to connect to the database:', error);
+	}
+})();
+
+// Trust first proxy
+app.set('trust proxy', 1);
+
+// Session configuration
+app.use(
+	session({
+		secret: process.env.SESSION_SECRET,
+		resave: false,
+		saveUninitialized: true,
+		cookie: {
+			secure: process.env.NODE_ENV === 'production',
+			httpOnly: true,
+			maxAge: 1000 * 60 * 30,
+			sameSite: 'lax',
+		},
+	})
+);
+
+// CORS configuration - adjust origin to match your React app's URL
+app.use(
+	cors({
+		origin: 'http://localhost:5173', // Replace with your React app URL
+		credentials: true, // Important for sessions/cookies to work
+	})
+);
+
+// Body parsers
+app.use(bodyParser.urlencoded({ extended: true }));
+app.use(express.urlencoded({ extended: false }));
+app.use(express.json());
+
+// Rate limiting
+const rateLimiter = rateLimit({
+	windowMs: 30 * 60 * 1000,
+	max: 100000,
+	standardHeaders: true,
+});
+app.use(rateLimiter);
+
+// Static files
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// Authentication middleware
+const isLoggedIn = (req, res, next) => {
+	if (req.session.loggedInUser) {
+		next();
+	} else {
+		res.status(401).json({ error: 'Not authenticated' });
+	}
+};
+
+// API endpoints
+// Authentication routes
+app.post('/api/login', async (req, res) => {
+	const { email, password } = req.body;
+	try {
+		const user = await LoginData.findOne({ where: { email } });
+		if (!user || !bcrypt.compareSync(password, user.password)) {
+			return res.status(401).json({ error: 'Invalid email or password' });
+		}
+		req.session.loggedInUser = { id: user.id, email: user.email };
+		res.json({ success: true, user: { email: user.email } });
+	} catch (err) {
+		console.error(err);
+		res.status(500).json({ error: 'Internal Server Error' });
+	}
+});
+
+app.post('/api/signup', async (req, res) => {
+	const { email, password, fullname } = req.body;
+	try {
+		// Check if user already exists
+		const existingUser = await LoginData.findOne({ where: { email } });
+		if (existingUser) {
+			return res.status(409).json({ error: 'Email already registered' });
+		}
+
+		// Hash password
+		const hashedPassword = await bcrypt.hash(password, 10);
+
+		// Create user
+		const newUser = await LoginData.create({
+			email,
+			password: hashedPassword,
+		});
+
+		// Create session
+		req.session.loggedInUser = { id: newUser.id, email: newUser.email };
+		res.status(201).json({ success: true, user: { email: newUser.email } });
+	} catch (err) {
+		console.error(err);
+		res.status(500).json({ error: 'Internal Server Error' });
+	}
+});
+
+app.get('/api/auth/check', (req, res) => {
+	if (req.session.loggedInUser) {
+		res.json({
+			isAuthenticated: true,
+			user: { email: req.session.loggedInUser.email },
+		});
+	} else {
+		res.json({ isAuthenticated: false });
+	}
+});
+
+app.post('/api/logout', (req, res) => {
+	req.session.destroy((err) => {
+		if (err) return res.status(500).json({ error: 'Logout failed' });
+		res.clearCookie('connect.sid');
+		res.json({ success: true });
+	});
+});
+
+// File upload configuration
+const storage = multer.diskStorage({
+	destination: 'uploads/',
+	filename: (req, file, cb) => {
+		const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+		cb(
+			null,
+			file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname)
+		);
+	},
+});
+
+const upload = multer({
+	storage,
+	limits: { fileSize: 5 * 1024 * 1024 },
+});
+
+// Item reporting routes
+app.post(
+	'/api/reportFound',
+	isLoggedIn,
+	upload.single('Image'),
+	async (req, res) => {
+		try {
+			const { Name, ContactNo, category, Item, DateFound, Description } =
+				req.body;
+			const imageUrl = req.file ? req.file.path.replace(/\\/g, '/') : '';
+
+			const newItem = await FoundItem.create({
+				name: Name,
+				contactNo: ContactNo,
+				category: category.toLowerCase(),
+				item: Item.toLowerCase(),
+				date: DateFound,
+				description: Description,
+				image: imageUrl,
+				userEmail: req.session.loggedInUser.email,
+			});
+
+			res.status(201).json({
+				success: true,
+				message: 'Item reported successfully',
+				item: newItem,
+				redirect: `/results?category=${category}&item=${Item}&type=found`,
+			});
+		} catch (error) {
+			console.error(error);
+			res.status(500).json({
+				error: 'Error reporting item. Please try again.',
+			});
+		}
+	}
+);
+
+app.post(
+	'/api/reportLost',
+	isLoggedIn,
+	upload.single('Image'),
+	async (req, res) => {
+		try {
+			const { Name, ContactNo, category, Item, DateLost, Description } =
+				req.body;
+			const imageUrl = req.file ? req.file.path.replace(/\\/g, '/') : '';
+
+			const newItem = await LostItem.create({
+				name: Name,
+				contactNo: ContactNo,
+				category: category.toLowerCase(),
+				item: Item.toLowerCase(),
+				date: DateLost,
+				description: Description,
+				image: imageUrl,
+				userEmail: req.session.loggedInUser.email,
+			});
+
+			res.status(201).json({
+				success: true,
+				message: 'Item reported successfully',
+				item: newItem,
+				redirect: `/results?category=${category}&item=${Item}&type=lost`,
+			});
+		} catch (error) {
+			console.error(error);
+			res.status(500).json({
+				error: 'Error reporting item. Please try again.',
+			});
+		}
+	}
+);
+
+// Item search and retrieval routes
+app.get('/api/searchItems', isLoggedIn, async (req, res) => {
+	try {
+		const { category, item, type } = req.query;
+		console.log(category, item, type);
+		if (!category || !item || !type) {
+			return res.status(400).json({ error: 'Missing parameters' });
+		}
+
+		const searchConditions = {
+			category: sequelize.where(
+				sequelize.fn('LOWER', sequelize.col('category')),
+				Op.eq,
+				category.toLowerCase().trim()
+			),
+			item: sequelize.where(
+				sequelize.fn('LOWER', sequelize.col('item')),
+				Op.eq,
+				item.toLowerCase().trim()
+			),
+		};
+
+		const allFoundItems = await FoundItem.findAll();
+		console.log('All Found Items:', allFoundItems);
+
+		let searchItems;
+		if (type === 'found') {
+			searchItems = await LostItem.findAll({ where: searchConditions });
+		} else if (type === 'lost') {
+			searchItems = await FoundItem.findAll({ where: searchConditions });
+		} else {
+			return res.status(400).json({ error: 'Invalid type parameter' });
+		}
+		console.log('Data sent', searchItems);
+
+		res.json(searchItems);
+	} catch (error) {
+		console.error(error);
+		res.status(500).json({ error: 'Internal Server Error' });
+	}
+});
+
+app.get('/api/userReports', isLoggedIn, async (req, res) => {
+	try {
+		const userEmail = req.session.loggedInUser.email;
+		const lostItems = await LostItem.findAll({ where: { userEmail } });
+		const foundItems = await FoundItem.findAll({ where: { userEmail } });
+		res.json({ lostItems, foundItems });
+	} catch (err) {
+		console.error(err);
+		res.status(500).json({ error: 'Internal Server Error' });
+	}
+});
+
+// Server
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => {
+	console.log(`Server is running on port ${PORT}`);
+});

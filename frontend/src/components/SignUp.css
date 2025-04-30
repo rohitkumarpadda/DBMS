@@ -1,0 +1,109 @@
+* {
+    padding: 0;
+    margin: 0;
+}
+
+body {
+    background-color: rgb(255, 255, 255);
+    font-family: Arial, Helvetica, sans-serif;
+}
+
+#signupnavbar1 img {
+    height: 5rem;
+}
+
+#signupnavbar1 {
+    display: flex;
+    align-items: center;
+}
+
+#signupnavbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background-color: rgb(5, 8, 44);
+    padding: 0.5rem 5rem;
+    color: white;
+}
+
+#signupnavbar2 {
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    font-size: 1.1rem;
+    width:10rem;
+}
+#signupnavbar2 a:hover{
+    color:red;
+}
+#signupsection{
+    display:flex;
+    flex-direction: column;
+    align-items: center;
+    margin-top:4rem;
+    background-color:rgb(7, 12, 60);
+    padding:1rem 2rem;
+    border-radius:10px;
+    color:white;
+    width:35rem;
+}
+
+#signupsection h1,p{
+    text-align: center;
+    margin-bottom:0.5rem;
+    margin-top:0.5rem;
+    font-size: 1.8rem;
+}
+#signupsection p{
+    font-size:1.1rem;
+}
+#signupsection form{
+    margin-top:1rem;
+    width:90%;
+}
+#signupsection form div{
+    display:flex;
+    align-items: center;
+    margin:0.7rem 0rem;
+}
+#signupsection form div input{
+    width:100%;
+    padding:0.5rem;
+    border-radius:10px;
+}
+#signupsection form div img{
+    height:1.9rem;
+    margin-right:0.5rem;
+}
+#signupsection button{
+    width:90%;
+    margin:1rem 0rem 1rem 2.7rem;
+    padding:0.3rem;
+    font-size:1.1rem;
+    border-radius: 10px;
+}
+#signupsection a:hover{
+    color:red;
+}
+#signupsectionmain{
+    display:flex;
+    justify-content: space-around;
+    width:80rem;
+    margin:0rem 8rem;
+    align-items: center;
+}
+#signupmainimg{
+    animation: move_img 2s linear 0.0s infinite;
+    margin-top:0.5rem;
+}
+@keyframes move_img{
+    0%{
+        margin-top: 0rem;
+    }
+    50%{
+        margin-top:3rem;
+    }
+    100%{
+        margin-top:0rem;
+    }
+}
