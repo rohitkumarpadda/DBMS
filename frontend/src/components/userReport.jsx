@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import './result.css';
 
-export default function ViewReports() {
+export default function ViewReports() { 
+	document.title="Lost And Found | Report"
 	const [lostItems, setLostItems] = useState([]);
 	const [foundItems, setFoundItems] = useState([]);
 	const [type, setType] = useState('');
@@ -97,7 +98,9 @@ export default function ViewReports() {
 							return (
 								<div className='result-item' key={`lost-${index}`}>
 									<h3>Lost Item</h3>
-									<img src={`../backend/${item.image}`} alt='Uploaded' />
+									<div id="result-itemmaindiv">
+										<img src={`../backend/${item.image}`} alt='Uploaded' />
+										</div>
 									<p>
 										<strong>Reported By:</strong> {item.name}
 									</p>
@@ -136,7 +139,7 @@ export default function ViewReports() {
 									<h3>Found Item</h3>
 									<img
 										src={`http://localhost:5000/${item.image}`}
-										alt='Uploaded'
+										alt='Uploaded' className='img-cont'
 									/>
 									<p>
 										<strong>Reported By:</strong> {item.name}
@@ -163,7 +166,7 @@ export default function ViewReports() {
 					</>
 				)}
 			</div>
-			<div id='footter'>&copy; IIITA LOST AND FOUND. All rights reserved</div>
+			{/* <div id='footter'>&copy; IIITA LOST AND FOUND. All rights reserved</div> */}
 		</div>
 	);
 }

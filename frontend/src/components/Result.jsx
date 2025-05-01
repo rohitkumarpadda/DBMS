@@ -12,14 +12,16 @@ export default function Result() {
 		const category = params.get('category');
 		const item = params.get('item');
 		const typeParam = params.get('type');
+		const description = params.get('description') || ''; // Optional
+		const imageId = params.get('imageId') || ''; // Optional
 		setType(typeParam);
 
-		fetch(
-			`http://localhost:5000/api/searchItems?category=${category}&item=${item}&type=${typeParam}`,
-			{
-				credentials: 'include',
-			}
-		)
+		// Construct the API URL with all query parameters
+		const apiUrl = `http://localhost:5000/api/searchItems?category=${category}&item=${item}&type=${typeParam}&description=${description}&imageId=${imageId}`;
+
+		fetch(apiUrl, {
+			credentials: 'include',
+		})
 			.then((res) => res.json())
 			.then((data) => {
 				setLoading(false);
@@ -93,10 +95,10 @@ export default function Result() {
 
 						return (
 							<div className='result-item' key={index}>
-								<h3>Lost Item</h3>
+								<h3>{type === 'lost' ? 'Lost Item' : 'Found Item'}</h3>
 								<img
 									src={`http://localhost:5000/${item.image}`}
-									alt='Uploaded'
+									alt='Uploaded' className='img-cont'
 								/>
 								<p>
 									<strong>Reported By:</strong> {item.name}
@@ -114,9 +116,11 @@ export default function Result() {
 									<strong>Item:</strong> {item.item}
 								</p>
 								<p>
-									<strong>Lost on:</strong> {formattedDate}
+									<strong>{type === 'lost' ? 'Lost on' : 'Found on'}:</strong>{' '}
+									{formattedDate}
 								</p>
 								<p>{item.description}</p>
+								<button className='notify-btn'>Notify</button>
 							</div>
 						);
 					})
