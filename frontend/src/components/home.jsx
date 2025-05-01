@@ -36,18 +36,6 @@ function Home() {
 							<img src='/iiitaLogo.png' alt='IIITA Logo' />
 							<h2>Lost & Found</h2>
 						</div>
-						<div className='search-container'>
-							<div className='search-bar'>
-								<input
-									type='text'
-									placeholder='Search for lost items...'
-									className='search-input'
-								/>
-								<button className='search-icon'>
-									<CiSearch size={20} />
-								</button>
-							</div>
-						</div>
 						<div id='aboutusnavbar2'>
 							<a href='/ViewReports'>Reports</a>
 							<a href='/AboutUs'>About Us</a>
@@ -59,6 +47,14 @@ function Home() {
 				</nav>
 			</header>
 			<main className='main-content'>
+			<div className='search-container'>
+							<div className='search-bar'>
+						<h1>Search For Your Lost Items Here!</h1>
+						<button onClick={() => {
+							window.location.href = '/search';
+						}}> Search</button>
+							</div>
+						</div>
 				<section className='hero-section'>
 					<div className='section-container flex-row'>
 						<div className='hero-text'>

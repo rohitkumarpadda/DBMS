@@ -74,7 +74,25 @@ html,
 
 .search-bar {
   position: relative;
-  width: 400px; /* Fixed width for the search bar */
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding:1rem;
+  color:rgb(5, 8, 44);
+  margin-top:0.5rem;
+}
+.search-bar button{
+   margin-top:1rem;
+  width:50%;
+  border-radius:10px;
+  font-size:1.1rem;
+  padding:0.3rem;
+  background-color:rgb(5, 8, 44) ;
+  color:white;
+}
+.search-bar button:hover{
+   background-color: rgb(25, 30, 91);
 }
 
 .search-input {
