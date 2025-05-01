@@ -9,6 +9,7 @@ import Result from './components/Result';
 import ReportForm1 from './components/reportForm2';
 import ForgotPassword from './components/ForgotPassword';
 import ViewReports from './components/userReport';
+import SearchPage from './components/searchPage';
 function App() {
 	return (
 		<Router>
@@ -31,6 +32,7 @@ function App() {
 					path='/ViewReports'
 					element={<ViewReports></ViewReports>}
 				></Route>
+				<Route path='/search' element={<SearchPage></SearchPage>}></Route>
 			</Routes>
 		</Router>
 	);
