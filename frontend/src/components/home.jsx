@@ -122,7 +122,7 @@ function Home() {
 							</p>
 							<div>
 								<button className='found-button' onClick={() => {
-										window.location.href = '/ReportForm';
+										window.location.href = '/ReportForm1';
 									}}>Report</button>
 							</div>
 						</div>

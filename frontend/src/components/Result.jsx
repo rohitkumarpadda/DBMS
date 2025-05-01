@@ -69,7 +69,7 @@ export default function Result() {
 				<p>Found {results.length} matching items</p>
 			</div>
 			<div className='results-buttons'>
-				<button onClick={() => (window.location.href = '/dashboard')}>
+				<button onClick={() => (window.location.href = '/Home')}>
 					Back to Dashboard
 				</button>
 				<button onClick={() => (window.location.href = '/search')}>
@@ -78,7 +78,7 @@ export default function Result() {
 			</div>
 			<div className='results-items'>
 				{results.length === 0 ? (
-					<p className='no-items'>{ message}</p>
+					<p className='no-items'>{message}</p>
 				) : (
 					results.map((item, index) => {
 						const date = item.date ? new Date(item.date) : null;
@@ -86,7 +86,7 @@ export default function Result() {
 							date && !isNaN(date)
 								? `${date.getDate().toString().padStart(2, '0')}-${(
 										date.getMonth() + 1
-								)
+								  )
 										.toString()
 										.padStart(2, '0')}-${date.getFullYear()}`
 								: 'Not Mentioned';
@@ -94,7 +94,10 @@ export default function Result() {
 						return (
 							<div className='result-item' key={index}>
 								<h3>Lost Item</h3>
-								<img src={`../backend/${item.image}`} alt='Uploaded' />
+								<img
+									src={`http://localhost:5000/${item.image}`}
+									alt='Uploaded'
+								/>
 								<p>
 									<strong>Reported By:</strong> {item.name}
 								</p>

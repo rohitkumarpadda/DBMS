@@ -30,7 +30,7 @@
 .results-buttons button {
 	margin: 0 10px;
 	padding: 10px 20px;
-	background-color: #1a1a1a;
+	background-color: rgb(5, 8, 44);
 	color: #fff;
 	border: none;
 	border-radius: 5px;
@@ -39,7 +39,7 @@
 }
 
 .results-buttons button:hover {
-	background-color: #333;
+	background-color: rgb(50, 56, 118);
 }
 
 /* Items container */
@@ -60,8 +60,13 @@
 	box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 	text-align: left;
 	height: 330px;
+	transition: all 0.3s linear 0.1s;
+	margin: 1rem;
 }
-
+.result-item:hover {
+	transform: scale(1.05);
+	border: 2p;
+}
 .result-item h3 {
 	font-size: 18px;
 	font-weight: bold;
@@ -122,6 +127,6 @@
 	font-size: 14px;
 	box-shadow: 0 -2px 5px rgba(0, 0, 0, 0.1);
 }
-.no-items{
-    margin-top: 100px;
+.no-items {
+	margin-top: 100px;
 }
