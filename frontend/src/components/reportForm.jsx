@@ -31,6 +31,7 @@ export default function ReportForm() {
 		formDataObj.append('category', formData.category);
 		formDataObj.append('Item', formData.item);
 		formDataObj.append('DateLost', formData.dateLost);
+		formDataObj.append('Location', formData.location); // Placeholder for location
 		formDataObj.append('Description', formData.description);
 		if (formData.image) {
 			formDataObj.append('Image', formData.image);
@@ -135,6 +136,17 @@ export default function ReportForm() {
 									placeholder='Enter Lost Item'
 									className='form-input'
 									value={formData.item}
+									onChange={handleChange}
+								/>
+							</label>
+							<label className='form-label'>
+								Location
+								<input
+									type='text'
+									name='location'
+									placeholder='Enter Location where you lost the item'
+									className='form-input'
+									value={formData.location}
 									onChange={handleChange}
 								/>
 							</label>

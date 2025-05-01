@@ -91,6 +91,231 @@ const transporter = nodemailer.createTransport({
 	},
 });
 
+// Core search utility functions - centralized for reuse
+const searchUtils = {
+	// Extract features from an image
+	async extractImageFeatures(imagePath) {
+		try {
+			const img = await loadImage(path.join(__dirname, imagePath));
+			const canvas = createCanvas(64, 64); // Standardized size for feature extraction
+			const ctx = canvas.getContext('2d');
+			ctx.drawImage(img, 0, 0, 64, 64);
+
+			// Improved histogram-based feature extraction with more bins for better accuracy
+			const imageData = ctx.getImageData(0, 0, 64, 64).data;
+			const histogram = Array(24).fill(0); // Increased to 24 bins for better color differentiation
+
+			for (let i = 0; i < imageData.length; i += 4) {
+				const r = Math.floor(imageData[i] / 11); // 0-23 range
+				const g = Math.floor(imageData[i + 1] / 11); // 0-23 range
+				const b = Math.floor(imageData[i + 2] / 11); // 0-23 range
+
+				// Weighted RGB binning for better color representation
+				const binIndex = Math.floor(r * 0.3 + g * 0.59 + b * 0.11);
+				histogram[Math.min(binIndex, 23)]++;
+			}
+
+			// Normalize histogram
+			const sum = histogram.reduce((a, b) => a + b, 0);
+			return histogram.map((value) => value / sum);
+		} catch (error) {
+			console.error('Error extracting image features:', error);
+			return null;
+		}
+	},
+
+	// Calculate image similarity using cosine similarity
+	calculateImageSimilarity(features1, features2) {
+		if (!features1 || !features2) return 0;
+		return similarity(features1, features2);
+	},
+
+	// Process text for NLP matching
+	processText(text) {
+		if (!text) return [];
+		return stopwords.removeStopwords(tokenizer.tokenize(text.toLowerCase()));
+	},
+
+	// Calculate text match score between search tokens and item
+	calculateTextMatchScore(item, searchTokens) {
+		if (!searchTokens || !searchTokens.length) return 0;
+
+		// Combine relevant item fields for matching
+		const itemText = `${item.category || ''} ${item.item || ''} ${
+			item.description || ''
+		}`.toLowerCase();
+		const itemTokens = this.processText(itemText);
+
+		if (!itemTokens.length) return 0;
+
+		// Calculate TF-IDF style matching with term frequency
+		let matchScore = 0;
+		const uniqueSearchTokens = [...new Set(searchTokens)];
+
+		for (const token of uniqueSearchTokens) {
+			// Count occurrences in item text
+			const tokenCount = itemTokens.filter((t) => t === token).length;
+			if (tokenCount > 0) {
+				// Score based on frequency and importance
+				matchScore +=
+					(tokenCount / itemTokens.length) * (1 / uniqueSearchTokens.length);
+			}
+		}
+
+		return Math.min(matchScore * 2, 1); // Scale and cap at 1.0
+	},
+
+	// Get base search conditions for database queries
+	getBaseSearchConditions(category, item) {
+		const conditions = {};
+
+		if (category) {
+			conditions.category = sequelize.where(
+				sequelize.fn('LOWER', sequelize.col('category')),
+				Op.eq,
+				category.toLowerCase().trim()
+			);
+		}
+
+		if (item) {
+			conditions.item = sequelize.where(
+				sequelize.fn('LOWER', sequelize.col('item')),
+				Op.eq,
+				item.toLowerCase().trim()
+			);
+		}
+
+		return conditions;
+	},
+
+	// Get items to search based on search type
+	async getItemsToSearch(type, conditions = {}) {
+		let foundItems = [];
+		let lostItems = [];
+
+		if (type === 'found' || type === 'all') {
+			lostItems = await LostItem.findAll({ where: conditions });
+		}
+
+		if (type === 'lost' || type === 'all') {
+			foundItems = await FoundItem.findAll({ where: conditions });
+		}
+
+		return {
+			foundItems: foundItems.map((item) => ({
+				...item.dataValues,
+				type: 'found',
+			})),
+			lostItems: lostItems.map((item) => ({
+				...item.dataValues,
+				type: 'lost',
+			})),
+		};
+	},
+
+	// Calculate fuzzy match for category and item
+	calculateFuzzyMatch(item, category, itemName) {
+		if (!category && !itemName) return 0;
+
+		let score = 0;
+
+		if (category && item.category) {
+			const categoryMatch = natural.JaroWinklerDistance(
+				item.category.toLowerCase(),
+				category.toLowerCase()
+			);
+			score += categoryMatch;
+		}
+
+		if (itemName && item.item) {
+			const itemMatch = natural.JaroWinklerDistance(
+				item.item.toLowerCase(),
+				itemName.toLowerCase()
+			);
+			score += itemMatch;
+		}
+
+		// Average the scores
+		const divisor = (category ? 1 : 0) + (itemName ? 1 : 0);
+		return divisor > 0 ? score / divisor : 0;
+	},
+
+	// Apply scoring to search results based on various search criteria
+	async scoreSearchResults(
+		items,
+		{ description, sourceImage, category, itemName }
+	) {
+		// Process description for text matching if provided
+		const searchTokens = description ? this.processText(description) : null;
+
+		// Extract image features if we have a source image
+		let sourceFeatures = null;
+		if (sourceImage && sourceImage.image) {
+			sourceFeatures = await this.extractImageFeatures(sourceImage.image);
+		}
+
+		// Process and score each item
+		const scoredItems = await Promise.all(
+			items.map(async (item) => {
+				let textScore = 0;
+				let imageScore = 0;
+				let fuzzyScore = 0;
+
+				// Calculate text match score if we have search tokens
+				if (searchTokens && searchTokens.length > 0) {
+					textScore = this.calculateTextMatchScore(item, searchTokens);
+				}
+
+				// Calculate image similarity if we have source features and this item has an image
+				if (sourceFeatures && item.image) {
+					const itemFeatures = await this.extractImageFeatures(item.image);
+					if (itemFeatures) {
+						imageScore = this.calculateImageSimilarity(
+							sourceFeatures,
+							itemFeatures
+						);
+					}
+				}
+
+				// Calculate fuzzy match score for category and item name
+				if (category || itemName) {
+					fuzzyScore = this.calculateFuzzyMatch(item, category, itemName);
+				}
+
+				// Calculate combined score with weights
+				const weights = {
+					text: searchTokens ? 0.5 : 0,
+					image: sourceFeatures ? 0.3 : 0,
+					fuzzy: category || itemName ? 0.2 : 0,
+				};
+
+				// Normalize weights
+				const totalWeight = weights.text + weights.image + weights.fuzzy;
+				if (totalWeight > 0) {
+					weights.text /= totalWeight;
+					weights.image /= totalWeight;
+					weights.fuzzy /= totalWeight;
+				}
+
+				const combinedScore =
+					textScore * weights.text +
+					imageScore * weights.image +
+					fuzzyScore * weights.fuzzy;
+
+				return {
+					...item,
+					textScore,
+					imageScore,
+					fuzzyScore,
+					combinedScore,
+				};
+			})
+		);
+
+		return scoredItems;
+	},
+};
+
 app.post('/api/notify', async (req, res) => {
 	const { to, subject, text } = req.body;
 
@@ -111,6 +336,50 @@ app.post('/api/notify', async (req, res) => {
 			.json({ success: true, message: 'Notification sent successfully' });
 	} catch (error) {
 		console.error('Error sending email:', error);
+		res.status(500).json({ error: 'Failed to send notification' });
+	}
+});
+
+app.post('/api/notifyItem', isLoggedIn, async (req, res) => {
+	try {
+		const { itemId, type } = req.body; // `itemId` is the ID of the item, `type` is either 'lost' or 'found'
+
+		if (!itemId || !type) {
+			return res.status(400).json({ error: 'Item ID and type are required' });
+		}
+
+		// Fetch the item details based on the type
+		let item;
+		if (type === 'lost') {
+			item = await LostItem.findByPk(itemId);
+		} else if (type === 'found') {
+			item = await FoundItem.findByPk(itemId);
+		} else {
+			return res.status(400).json({ error: 'Invalid type parameter' });
+		}
+
+		if (!item) {
+			return res.status(404).json({ error: 'Item not found' });
+		}
+
+		// Send notification email
+		const message =
+			type === 'lost'
+				? `Hello, someone is interested in your lost item: ${item.item}. Please contact them for further details.`
+				: `Hello, someone is interested in your found item: ${item.item}. Please contact them for further details.`;
+
+		await transporter.sendMail({
+			from: process.env.GMAIL_USER,
+			to: item.userEmail, // Notify the item's owner
+			subject: `Notification for your ${type} item`,
+			text: message,
+		});
+
+		res
+			.status(200)
+			.json({ success: true, message: 'Notification sent successfully' });
+	} catch (error) {
+		console.error('Error sending notification:', error);
 		res.status(500).json({ error: 'Failed to send notification' });
 	}
 });
@@ -304,8 +573,15 @@ app.post(
 	upload.single('Image'),
 	async (req, res) => {
 		try {
-			const { Name, ContactNo, category, Item, DateFound, Description } =
-				req.body;
+			const {
+				Name,
+				ContactNo,
+				category,
+				Item,
+				DateFound,
+				Description,
+				Location,
+			} = req.body;
 			const imageUrl = req.file ? req.file.path.replace(/\\/g, '/') : '';
 
 			const newItem = await FoundItem.create({
@@ -317,6 +593,7 @@ app.post(
 				description: Description,
 				image: imageUrl,
 				userEmail: req.session.loggedInUser.email,
+				location: Location, // Save location
 			});
 
 			res.status(201).json({
@@ -340,8 +617,15 @@ app.post(
 	upload.single('Image'),
 	async (req, res) => {
 		try {
-			const { Name, ContactNo, category, Item, DateLost, Description } =
-				req.body;
+			const {
+				Name,
+				ContactNo,
+				category,
+				Item,
+				DateLost,
+				Description,
+				Location,
+			} = req.body;
 			const imageUrl = req.file ? req.file.path.replace(/\\/g, '/') : '';
 
 			const newItem = await LostItem.create({
@@ -353,6 +637,7 @@ app.post(
 				description: Description,
 				image: imageUrl,
 				userEmail: req.session.loggedInUser.email,
+				location: Location, // Save location
 			});
 
 			res.status(201).json({
@@ -370,161 +655,100 @@ app.post(
 	}
 );
 
+// 1. searchItems endpoint - streamlined implementation
 app.get('/api/searchItems', isLoggedIn, async (req, res) => {
 	try {
 		const { category, item, type, description, imageId } = req.query;
+		const userEmail = req.session.loggedInUser.email;
 
-		if (!category || !item || !type) {
+		if (!category || !type) {
+			// Make `item` optional
 			return res.status(400).json({ error: 'Missing parameters' });
 		}
 
-		const searchConditions = {
-			category: sequelize.where(
-				sequelize.fn('LOWER', sequelize.col('category')),
-				Op.eq,
-				category.toLowerCase().trim()
-			),
-			item: sequelize.where(
-				sequelize.fn('LOWER', sequelize.col('item')),
-				Op.eq,
-				item.toLowerCase().trim()
-			),
-		};
+		// Get base search conditions
+		const searchConditions = searchUtils.getBaseSearchConditions(
+			category,
+			item
+		);
 
-		let searchItems;
+		// Determine which items to search based on type
+		let searchItems = [];
 		if (type === 'found') {
-			searchItems = await LostItem.findAll({ where: searchConditions });
+			const { lostItems } = await searchUtils.getItemsToSearch(
+				'found',
+				searchConditions
+			);
+			searchItems = lostItems.filter(
+				(item) => item.userEmail !== userEmail && !item.resolved // Exclude user's own and resolved items
+			);
 		} else if (type === 'lost') {
-			searchItems = await FoundItem.findAll({ where: searchConditions });
+			const { foundItems } = await searchUtils.getItemsToSearch(
+				'lost',
+				searchConditions
+			);
+			searchItems = foundItems.filter(
+				(item) => item.userEmail !== userEmail && !item.resolved // Exclude user's own and resolved items
+			);
 		} else {
 			return res.status(400).json({ error: 'Invalid type parameter' });
 		}
 
-		// If description is provided, calculate match scores
-		if (description) {
-			const searchTokens = stopwords.removeStopwords(
-				tokenizer.tokenize(description.toLowerCase())
-			);
-
-			searchItems = searchItems.map((item) => {
-				const descScore = calculateMatchScore(item, searchTokens);
-				return { ...item.dataValues, descScore };
-			});
-		}
-
-		// If imageId is provided, calculate image similarity scores
+		// Get source image if imageId is provided
+		let sourceImage = null;
 		if (imageId) {
-			let sourceImage;
-			if (type === 'lost') {
-				sourceImage = await FoundItem.findByPk(imageId);
-			} else {
-				sourceImage = await LostItem.findByPk(imageId);
-			}
-
-			if (sourceImage && sourceImage.image) {
-				const sourceFeatures = await extractImageFeatures(sourceImage.image);
-
-				if (sourceFeatures) {
-					searchItems = await Promise.all(
-						searchItems.map(async (item) => {
-							if (item.image) {
-								const itemFeatures = await extractImageFeatures(item.image);
-								const imgScore = calculateImageSimilarity(
-									sourceFeatures,
-									itemFeatures
-								);
-								return { ...item, imgScore };
-							}
-							return { ...item, imgScore: 0 };
-						})
-					);
-				}
-			}
+			sourceImage =
+				type === 'lost'
+					? await FoundItem.findByPk(imageId)
+					: await LostItem.findByPk(imageId);
 		}
 
-		// Sort by combined score (weighted combination of descScore and imgScore)
-		searchItems = searchItems.map((item) => ({
-			...item,
-			combinedScore: (item.descScore || 0) * 0.7 + (item.imgScore || 0) * 0.3,
-		}));
+		// Score the results
+		const scoredItems = await searchUtils.scoreSearchResults(searchItems, {
+			description,
+			sourceImage,
+			category,
+			itemName: item,
+		});
 
-		searchItems.sort((a, b) => b.combinedScore - a.combinedScore);
+		// Filter and sort results
+		const results = scoredItems
+			.filter((item) => item.combinedScore > 0.2)
+			.sort((a, b) => b.combinedScore - a.combinedScore);
 
-		res.json(searchItems);
+		res.json(results);
 	} catch (error) {
 		console.error(error);
 		res.status(500).json({ error: 'Internal Server Error' });
 	}
 });
 
-app.get('/api/userReports', isLoggedIn, async (req, res) => {
-	try {
-		const userEmail = req.session.loggedInUser.email;
-		const lostItems = await LostItem.findAll({ where: { userEmail } });
-		const foundItems = await FoundItem.findAll({ where: { userEmail } });
-		res.json({ lostItems, foundItems });
-	} catch (err) {
-		console.error(err);
-		res.status(500).json({ error: 'Internal Server Error' });
-	}
-});
-
-// Add search by description route
+// 2. searchByDescription endpoint - streamlined implementation
 app.get('/api/searchByDescription', isLoggedIn, async (req, res) => {
 	try {
 		const { description, type } = req.query;
-
+		const userEmail = req.session.loggedInUser.email;
 		if (!description) {
 			return res.status(400).json({ error: 'Missing description parameter' });
 		}
 
-		// Tokenize and normalize the search query
-		let searchTokens = tokenizer.tokenize(description.toLowerCase());
-		searchTokens = stopwords.removeStopwords(searchTokens);
+		// Get all relevant items
+		const { foundItems, lostItems } = await searchUtils.getItemsToSearch(
+			type || 'all'
+		);
+		const allItems = [...foundItems, ...lostItems].filter(
+			(item) => item.userEmail !== userEmail && !item.resolved // Exclude user's own and resolved items
+		); // Exclude user's own items
 
-		// Define which model(s) to search in based on search type
-		let foundItems = [];
-		let lostItems = [];
-
-		if (type === 'all' || type === 'found') {
-			foundItems = await FoundItem.findAll();
-		}
-
-		if (type === 'all' || type === 'lost') {
-			lostItems = await LostItem.findAll();
-		}
-
-		// Process and score items
-		const results = [];
-
-		// Process found items
-		foundItems.forEach((item) => {
-			const score = calculateMatchScore(item, searchTokens);
-			if (score > 0.1) {
-				// Threshold for relevance
-				results.push({
-					...item.dataValues,
-					type: 'found',
-					matchScore: score,
-				});
-			}
+		// Score items based on description only
+		const scoredItems = await searchUtils.scoreSearchResults(allItems, {
+			description,
 		});
 
-		// Process lost items
-		lostItems.forEach((item) => {
-			const score = calculateMatchScore(item, searchTokens);
-			if (score > 0.1) {
-				// Threshold for relevance
-				results.push({
-					...item.dataValues,
-					type: 'lost',
-					matchScore: score,
-				});
-			}
-		});
-
-		// Sort by match score (highest first)
-		results.sort((a, b) => b.matchScore - a.matchScore);
+		// Filter and sort by match score
+		const results = scoredItems
+			.filter((item) => item.textScore > 0.1)
+			.sort((a, b) => b.textScore - a.textScore);
 
 		res.json(results);
 	} catch (error) {
@@ -533,79 +757,16 @@ app.get('/api/searchByDescription', isLoggedIn, async (req, res) => {
 	}
 });
 
-// Helper function to calculate match score
-function calculateMatchScore(item, searchTokens) {
-	if (!searchTokens.length) return 0;
-
-	// Combine relevant item fields for matching
-	const itemText =
-		`${item.category} ${item.item} ${item.description}`.toLowerCase();
-
-	// Tokenize the item text
-	let itemTokens = tokenizer.tokenize(itemText);
-	itemTokens = stopwords.removeStopwords(itemTokens);
-
-	// Calculate matches
-	let matchCount = 0;
-	for (const token of searchTokens) {
-		if (itemTokens.includes(token)) {
-			matchCount++;
-		}
-	}
-
-	// Calculate score as percentage of matching tokens
-	const score = matchCount / searchTokens.length;
-
-	return score;
-}
-
-// Add image processing and search functionality
-// Helper function to extract features from an image
-async function extractImageFeatures(imagePath) {
-	try {
-		const img = await loadImage(path.join(__dirname, imagePath));
-		const canvas = createCanvas(64, 64); // Resize for feature extraction
-		const ctx = canvas.getContext('2d');
-		ctx.drawImage(img, 0, 0, 64, 64);
-
-		// Simple histogram-based feature extraction
-		const imageData = ctx.getImageData(0, 0, 64, 64).data;
-		const histogram = Array(16).fill(0); // 16 bins for color histogram
-
-		for (let i = 0; i < imageData.length; i += 4) {
-			const r = Math.floor(imageData[i] / 16); // 0-15
-			const g = Math.floor(imageData[i + 1] / 16); // 0-15
-			const b = Math.floor(imageData[i + 2] / 16); // 0-15
-
-			// Combine RGB values into a single bin index (0-15)
-			const binIndex = Math.floor((r + g + b) / 3);
-			histogram[binIndex]++;
-		}
-
-		// Normalize histogram
-		const sum = histogram.reduce((a, b) => a + b, 0);
-		return histogram.map((value) => value / sum);
-	} catch (error) {
-		console.error('Error extracting image features:', error);
-		return null;
-	}
-}
-
-// Calculate similarity between two images
-function calculateImageSimilarity(features1, features2) {
-	if (!features1 || !features2) return 0;
-	return similarity(features1, features2);
-}
-
+// 3. searchByImage endpoint - streamlined implementation
 app.get('/api/searchByImage', isLoggedIn, async (req, res) => {
 	try {
 		const { imageId, type } = req.query;
-
+		const userEmail = req.session.loggedInUser.email;
 		if (!imageId) {
 			return res.status(400).json({ error: 'Missing image ID parameter' });
 		}
 
-		// First find the source image
+		// Find the source image
 		let sourceImage;
 		if (type === 'lost') {
 			sourceImage = await LostItem.findByPk(imageId);
@@ -619,56 +780,28 @@ app.get('/api/searchByImage', isLoggedIn, async (req, res) => {
 			return res.status(404).json({ error: 'Source image not found' });
 		}
 
-		// Extract features from source image
-		const sourceFeatures = await extractImageFeatures(sourceImage.image);
-		if (!sourceFeatures) {
-			return res.status(500).json({ error: 'Error processing source image' });
-		}
+		// Get items to search with matching category
+		const searchConditions = { category: sourceImage.category };
+		const oppositeType = type === 'lost' ? 'found' : 'lost';
+		const { foundItems, lostItems } = await searchUtils.getItemsToSearch(
+			oppositeType,
+			searchConditions
+		);
+		let itemsToSearch = type === 'lost' ? foundItems : lostItems;
+		itemsToSearch = itemsToSearch.filter(
+			(item) => item.userEmail !== userEmail && !item.resolved // Exclude user's own and resolved items
+		); // Exclude user's own items
 
-		// Get items to compare with
-		let itemsToSearch;
-		if (type === 'lost') {
-			// If we're looking for a lost item, search found items
-			itemsToSearch = await FoundItem.findAll({
-				where: {
-					category: sourceImage.category,
-					image: { [Op.ne]: null },
-				},
-			});
-		} else {
-			// If we're looking for who found our item, search lost items
-			itemsToSearch = await LostItem.findAll({
-				where: {
-					category: sourceImage.category,
-					image: { [Op.ne]: null },
-				},
-			});
-		}
+		// Score items based on image similarity only
+		const scoredItems = await searchUtils.scoreSearchResults(itemsToSearch, {
+			sourceImage,
+		});
 
-		// Compare with each item and calculate similarity scores
-		const results = [];
-		for (const item of itemsToSearch) {
-			if (item.image) {
-				const itemFeatures = await extractImageFeatures(item.image);
-				if (itemFeatures) {
-					const similarityScore = calculateImageSimilarity(
-						sourceFeatures,
-						itemFeatures
-					);
-					if (similarityScore > 0.6) {
-						// Threshold for relevance
-						results.push({
-							...item.dataValues,
-							type: type === 'lost' ? 'found' : 'lost',
-							similarityScore,
-						});
-					}
-				}
-			}
-		}
+		// Filter and sort by image score
+		const results = scoredItems
+			.filter((item) => item.imageScore > 0.3)
+			.sort((a, b) => b.imageScore - a.imageScore);
 
-		// Sort by similarity score
-		results.sort((a, b) => b.similarityScore - a.similarityScore);
 		res.json(results);
 	} catch (error) {
 		console.error('Image search error:', error);
@@ -676,86 +809,62 @@ app.get('/api/searchByImage', isLoggedIn, async (req, res) => {
 	}
 });
 
+// 4. unifiedSearch endpoint - streamlined implementation
 app.post(
 	'/api/unifiedSearch',
 	isLoggedIn,
 	upload.single('image'),
 	async (req, res) => {
 		try {
-			const { description, category, type } = req.body;
+			const { description, category, type, item } = req.body; // Include "item"
 			const image = req.file;
 
-			let results = [];
+			if (!category) {
+				return res.status(400).json({ error: 'Category is required' });
+			}
 
-			// Fetch items based on type
+			// Get matching items
+			const searchConditions = searchUtils.getBaseSearchConditions(
+				category,
+				item
+			); // Pass "item" to conditions
+			const { foundItems, lostItems } = await searchUtils.getItemsToSearch(
+				type || 'all',
+				searchConditions
+			);
+
 			let itemsToSearch;
 			if (type === 'lost') {
-				itemsToSearch = await FoundItem.findAll({
-					where: {
-						category: category.toLowerCase(),
-					},
-				});
+				itemsToSearch = foundItems;
 			} else if (type === 'found') {
-				itemsToSearch = await LostItem.findAll({
-					where: {
-						category: category.toLowerCase(),
-					},
-				});
+				itemsToSearch = lostItems;
 			} else {
-				itemsToSearch = [
-					...(await FoundItem.findAll({
-						where: { category: category.toLowerCase() },
-					})),
-					...(await LostItem.findAll({
-						where: { category: category.toLowerCase() },
-					})),
-				];
+				itemsToSearch = [...foundItems, ...lostItems];
 			}
 
-			// Process description-based search
-			if (description) {
-				const searchTokens = stopwords.removeStopwords(
-					tokenizer.tokenize(description.toLowerCase())
-				);
+			itemsToSearch = itemsToSearch.filter(
+				(item) =>
+					item.userEmail !== req.session.loggedInUser.email && !item.resolved // Exclude user's own and resolved items
+			);
 
-				results = itemsToSearch.map((item) => {
-					const descScore = calculateMatchScore(item, searchTokens);
-					return { ...item.dataValues, descScore };
-				});
-			}
-
-			// Process image-based search
+			// Prepare source image if available
+			let sourceImage = null;
 			if (image) {
-				const sourceFeatures = await extractImageFeatures(image.path);
-
-				if (sourceFeatures) {
-					const imageMatches = await Promise.all(
-						itemsToSearch.map(async (item) => {
-							if (item.image) {
-								const itemFeatures = await extractImageFeatures(item.image);
-								if (itemFeatures) {
-									const imgScore = calculateImageSimilarity(
-										sourceFeatures,
-										itemFeatures
-									);
-									return { ...item.dataValues, imgScore };
-								}
-							}
-							return { ...item.dataValues, imgScore: 0 };
-						})
-					);
-
-					results = [...results, ...imageMatches];
-				}
+				sourceImage = { image: image.path };
 			}
 
-			// Combine and sort results by combined score
-			results = results.map((item) => ({
-				...item,
-				combinedScore: (item.descScore || 0) * 0.7 + (item.imgScore || 0) * 0.3,
-			}));
+			// Score the results
+			const scoredItems = await searchUtils.scoreSearchResults(itemsToSearch, {
+				description,
+				sourceImage,
+				category,
+				itemName: item, // Include "item" in scoring
+			});
 
-			results.sort((a, b) => b.combinedScore - a.combinedScore);
+			// Filter and sort by combined score
+			const results = scoredItems
+				.filter((item) => item.combinedScore > 0.2)
+				.sort((a, b) => b.combinedScore - a.combinedScore);
 
 			res.json(results);
 		} catch (error) {
@@ -765,7 +874,7 @@ app.post(
 	}
 );
 
-// Enhanced search route that combines multiple search methods
+// 5. enhancedSearch endpoint - streamlined implementation
 app.get('/api/enhancedSearch', isLoggedIn, async (req, res) => {
 	try {
 		const { category, item, description, imageId, type } = req.query;
@@ -774,125 +883,148 @@ app.get('/api/enhancedSearch', isLoggedIn, async (req, res) => {
 			return res.status(400).json({ error: 'Missing required parameters' });
 		}
 
-		const searchConditions = {
-			category: sequelize.where(
-				sequelize.fn('LOWER', sequelize.col('category')),
-				Op.eq,
-				category.toLowerCase().trim()
-			),
-			item: sequelize.where(
-				sequelize.fn('LOWER', sequelize.col('item')),
-				Op.eq,
-				item.toLowerCase().trim()
-			),
-		};
+		// Get base search conditions
+		const searchConditions = searchUtils.getBaseSearchConditions(
+			category,
+			item
+		);
 
-		// Get initial results based on category and item
-		let searchItems;
+		// Get initial results
+		let searchItemsExact = [];
 		if (type === 'found') {
-			// Looking for matches to lost item
-			searchItems = await LostItem.findAll({ where: searchConditions });
+			const { lostItems } = await searchUtils.getItemsToSearch(
+				'found',
+				searchConditions
+			);
+			searchItemsExact = lostItems;
 		} else if (type === 'lost') {
-			// Looking for matches to found item
-			searchItems = await FoundItem.findAll({ where: searchConditions });
+			const { foundItems } = await searchUtils.getItemsToSearch(
+				'lost',
+				searchConditions
+			);
+			searchItemsExact = foundItems;
 		} else {
 			return res.status(400).json({ error: 'Invalid type parameter' });
 		}
 
-		// If we have no initial matches, try fuzzy matching on categories and items
+		// If exact match didn't yield results, try fuzzy search
+		let searchItems = searchItemsExact.filter(
+			(item) =>
+				item.userEmail !== req.session.loggedInUser.email && !item.resolved // Exclude user's own and resolved items
+		); // Exclude user's own items
 		if (searchItems.length === 0) {
-			let allItems;
-			if (type === 'found') {
-				allItems = await LostItem.findAll();
-			} else {
-				allItems = await FoundItem.findAll();
-			}
+			// Get all items of the opposite type
+			const oppositeType = type === 'found' ? 'lost' : 'found';
+			const { foundItems, lostItems } = await searchUtils.getItemsToSearch(
+				oppositeType
+			);
+			const allItems = type === 'found' ? lostItems : foundItems;
 
-			// Filter items with some similarity in category or item name
-			searchItems = allItems.filter((itemObj) => {
-				const categoryMatch =
-					natural.JaroWinklerDistance(
-						itemObj.category.toLowerCase(),
-						category.toLowerCase()
-					) > 0.7;
-
-				const itemMatch =
-					natural.JaroWinklerDistance(
-						itemObj.item.toLowerCase(),
-						item.toLowerCase()
-					) > 0.7;
-
-				return categoryMatch && itemMatch;
+			// Filter for fuzzy matches
+			searchItems = allItems.filter((item) => {
+				const isNotUserItem = item.userEmail !== req.session.loggedInUser.email;
+				const fuzzyScore = searchUtils.calculateFuzzyMatch(
+					item,
+					category,
+					item
+				);
+				return isNotUserItem && fuzzyScore > 0.2;
 			});
 		}
 
-		// Process results and add scores
-		let results = searchItems.map((item) => ({
-			...item.dataValues,
-			type: type === 'found' ? 'lost' : 'found',
-			matchScore: 1.0, // Base score for category/item match
-		}));
-
-		// If description provided, enhance scoring with description match
-		if (description && results.length > 0) {
-			// Tokenize search description
-			let searchTokens = tokenizer.tokenize(description.toLowerCase());
-			searchTokens = stopwords.removeStopwords(searchTokens);
-
-			// Update scores with description match
-			results = results.map((item) => {
-				const descScore = calculateMatchScore(item, searchTokens);
-				return {
-					...item,
-					matchScore: item.matchScore * 0.7 + descScore * 0.3, // Weighted combination
-				};
-			});
+		// Get source image if imageId provided
+		let sourceImage = null;
+		if (imageId) {
+			sourceImage =
+				type === 'lost'
+					? await FoundItem.findByPk(imageId)
+					: await LostItem.findByPk(imageId);
 		}
 
-		// If image provided, enhance scoring with image similarity
-		if (imageId && results.length > 0) {
-			// Get source image
-			let sourceImage;
-			if (type === 'lost') {
-				sourceImage = await FoundItem.findByPk(imageId);
-			} else {
-				sourceImage = await LostItem.findByPk(imageId);
-			}
+		// Score the results
+		const scoredItems = await searchUtils.scoreSearchResults(searchItems, {
+			description,
+			sourceImage,
+			category,
+			itemName: item,
+		});
 
-			if (sourceImage && sourceImage.image) {
-				const sourceFeatures = await extractImageFeatures(sourceImage.image);
-
-				if (sourceFeatures) {
-					// Update scores with image similarity
-					for (let i = 0; i < results.length; i++) {
-						const item = results[i];
-						if (item.image) {
-							const itemFeatures = await extractImageFeatures(item.image);
-							if (itemFeatures) {
-								const imgScore = calculateImageSimilarity(
-									sourceFeatures,
-									itemFeatures
-								);
-								// Update matchScore with weighted combination
-								results[i].matchScore =
-									results[i].matchScore * 0.6 + imgScore * 0.4;
-								results[i].imageSimilarity = imgScore;
-							}
-						}
-					}
+		// Give a boost to exact matches
+		if (searchItemsExact.length > 0) {
+			scoredItems.forEach((item) => {
+				if (searchItemsExact.some((exactItem) => exactItem.id === item.id)) {
+					item.combinedScore += 0.2; // Boost exact matches
+					item.combinedScore = Math.min(item.combinedScore, 1.0); // Cap at 1.0
 				}
-			}
+			});
 		}
 
-		// Filter low scoring results and sort by score
-		results = results
-			.filter((item) => item.matchScore > 0.3) // Minimum relevance threshold
-			.sort((a, b) => b.matchScore - a.matchScore);
+		// Filter and sort results
+		const results = scoredItems
+			.filter((item) => item.combinedScore > 0.3)
+			.sort((a, b) => b.combinedScore - a.combinedScore);
 
 		res.json(results);
 	} catch (error) {
 		console.error('Enhanced search error:', error);
 		res.status(500).json({ error: 'Internal Server Error' });
+	}
+});
+
+app.get('/api/userReports', isLoggedIn, async (req, res) => {
+	try {
+		const userEmail = req.session.loggedInUser.email;
+		const lostItems = await LostItem.findAll({ where: { userEmail } });
+		const foundItems = await FoundItem.findAll({ where: { userEmail } });
+
+		// Separate resolved and unresolved items
+		const unresolvedLostItems = lostItems.filter((item) => !item.resolved);
+		const resolvedLostItems = lostItems.filter((item) => item.resolved);
+		const unresolvedFoundItems = foundItems.filter((item) => !item.resolved);
+		const resolvedFoundItems = foundItems.filter((item) => item.resolved);
+
+		res.json({
+			lostItems: [...unresolvedLostItems, ...resolvedLostItems], // Show unresolved first
+			foundItems: [...unresolvedFoundItems, ...resolvedFoundItems], // Show unresolved first
+		});
+	} catch (err) {
+		console.error(err);
+		res.status(500).json({ error: 'Internal Server Error' });
+	}
+});
+
+app.post('/api/resolveItem', isLoggedIn, async (req, res) => {
+	try {
+		const { id, type } = req.body; // `id` is the item ID, `type` is either 'lost' or 'found'
+
+		if (!id || !type) {
+			return res.status(400).json({ error: 'Item ID and type are required' });
+		}
+
+		let item;
+		if (type === 'lost') {
+			item = await LostItem.findByPk(id);
+		} else if (type === 'found') {
+			item = await FoundItem.findByPk(id);
+		} else {
+			return res.status(400).json({ error: 'Invalid type parameter' });
+		}
+
+		if (!item) {
+			return res.status(404).json({ error: 'Item not found' });
+		}
+
+		// Toggle the resolved field
+		item.resolved = !item.resolved;
+		await item.save();
+
+		res.status(200).json({
+			success: true,
+			message: `Item marked as ${item.resolved ? 'resolved' : 'unresolved'}.`,
+		});
+	} catch (error) {
+		console.error('Error resolving item:', error);
+		res.status(500).json({ error: 'Failed to resolve item' });
 	}
 });
 

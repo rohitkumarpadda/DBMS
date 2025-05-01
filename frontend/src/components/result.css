@@ -150,3 +150,16 @@
 	border-radius: 10px;
 	font-weight: 550;
 }
+#resolve-button{
+	width:100px;
+	height: 30px;
+	margin-left: 90px;
+	background-color: rgb(5, 8, 44);
+	color: #fff;
+	border: none;
+	border-radius: 10px;
+	font-weight: 550;
+}
+#resolve-button:hover{
+	background-color: rgb(50, 56, 118);
+}

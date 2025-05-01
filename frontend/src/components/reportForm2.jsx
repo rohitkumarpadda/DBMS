@@ -30,6 +30,7 @@ export default function ReportForm1() {
 		formDataObj.append('ContactNo', formData.mobileNo);
 		formDataObj.append('category', formData.category);
 		formDataObj.append('Item', formData.item);
+		formDataObj.append('Location', formData.location); // Placeholder for location
 		formDataObj.append('DateFound', formData.dateFound);
 		formDataObj.append('Description', formData.description);
 		if (formData.image) {
@@ -133,6 +134,17 @@ export default function ReportForm1() {
 									placeholder='Enter Found Item'
 									className='form-input'
 									value={formData.item}
+									onChange={handleChange}
+								/>
+							</label>
+							<label className='form-label'>
+								Location
+								<input
+									type='text'
+									name='location'
+									placeholder='Enter Location where you found the item'
+									className='form-input'
+									value={formData.location}
 									onChange={handleChange}
 								/>
 							</label>

@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import './result.css';
 
-export default function ViewReports() { 
-	document.title="Lost And Found | Report"
+export default function ViewReports() {
+	document.title = 'Lost And Found | Report';
 	const [lostItems, setLostItems] = useState([]);
 	const [foundItems, setFoundItems] = useState([]);
 	const [type, setType] = useState('');
@@ -44,6 +44,48 @@ export default function ViewReports() {
 				console.error(err);
 			});
 	}, []);
+
+	// Function to handle resolving an item
+	const handleResolve = (id, type) => {
+		fetch(`http://localhost:5000/api/resolveItem`, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+			},
+			body: JSON.stringify({ id, type }),
+			credentials: 'include',
+		})
+			.then((res) => res.json())
+			.then((data) => {
+				if (data.success) {
+					alert(data.message);
+					// Move the resolved item to the end of the list
+					if (type === 'lost') {
+						setLostItems((prev) => {
+							const item = prev.find((item) => item.id === id);
+							return [
+								...prev.filter((item) => item.id !== id),
+								{ ...item, resolved: !item.resolved },
+							];
+						});
+					} else if (type === 'found') {
+						setFoundItems((prev) => {
+							const item = prev.find((item) => item.id === id);
+							return [
+								...prev.filter((item) => item.id !== id),
+								{ ...item, resolved: !item.resolved },
+							];
+						});
+					}
+				} else {
+					alert('Failed to resolve the item.');
+				}
+			})
+			.catch((err) => {
+				console.error('Error resolving item:', err);
+				alert('An error occurred while resolving the item.');
+			});
+	};
 
 	if (loading) return <p>Loading...</p>;
 
@@ -98,9 +140,9 @@ export default function ViewReports() {
 							return (
 								<div className='result-item' key={`lost-${index}`}>
 									<h3>Lost Item</h3>
-									<div id="result-itemmaindiv">
+									<div id='result-itemmaindiv'>
 										<img src={`../backend/${item.image}`} alt='Uploaded' />
-										</div>
+									</div>
 									<p>
 										<strong>Reported By:</strong> {item.name}
 									</p>
@@ -117,9 +159,18 @@ export default function ViewReports() {
 										<strong>Item:</strong> {item.item}
 									</p>
 									<p>
+										<strong>Location:</strong> {item.location}
+									</p>
+									<p>
 										<strong>Lost on:</strong> {formattedDate}
 									</p>
 									<p>{item.description}</p>
+									<button
+										id='resolve-button'
+										onClick={() => handleResolve(item.id, 'lost')}
+									>
+										Resolve
+									</button>
 								</div>
 							);
 						})}
@@ -139,7 +190,8 @@ export default function ViewReports() {
 									<h3>Found Item</h3>
 									<img
 										src={`http://localhost:5000/${item.image}`}
-										alt='Uploaded' className='img-cont'
+										alt='Uploaded'
+										className='img-cont'
 									/>
 									<p>
 										<strong>Reported By:</strong> {item.name}
@@ -160,13 +212,18 @@ export default function ViewReports() {
 										<strong>Found on:</strong> {formattedDate}
 									</p>
 									<p>{item.description}</p>
+									<button
+										id='resolve-button'
+										onClick={() => handleResolve(item.id, 'found')}
+									>
+										Resolve
+									</button>
 								</div>
 							);
 						})}
 					</>
 				)}
 			</div>
-			{/* <div id='footter'>&copy; IIITA LOST AND FOUND. All rights reserved</div> */}
 		</div>
 	);
 }

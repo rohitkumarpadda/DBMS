@@ -7,6 +7,29 @@ export default function Result() {
 	const [loading, setLoading] = useState(true);
 	const [message, setMessage] = useState('');
 
+	const handleNotify = async (itemId, type) => {
+		try {
+			const response = await fetch('http://localhost:5000/api/notifyItem', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify({ itemId, type }),
+				credentials: 'include',
+			});
+
+			const data = await response.json();
+			if (response.ok) {
+				alert(data.message || 'Notification sent successfully!');
+			} else {
+				alert(data.error || 'Failed to send notification.');
+			}
+		} catch (error) {
+			console.error('Error sending notification:', error);
+			alert('An error occurred while sending the notification.');
+		}
+	};
+
 	useEffect(() => {
 		const params = new URLSearchParams(window.location.search);
 		const category = params.get('category');
@@ -98,7 +121,8 @@ export default function Result() {
 								<h3>{type === 'lost' ? 'Lost Item' : 'Found Item'}</h3>
 								<img
 									src={`http://localhost:5000/${item.image}`}
-									alt='Uploaded' className='img-cont'
+									alt='Uploaded'
+									className='img-cont'
 								/>
 								<p>
 									<strong>Reported By:</strong> {item.name}
@@ -116,11 +140,20 @@ export default function Result() {
 									<strong>Item:</strong> {item.item}
 								</p>
 								<p>
+									<strong>Location:</strong>
+									{item.location}
+								</p>
+								<p>
 									<strong>{type === 'lost' ? 'Lost on' : 'Found on'}:</strong>{' '}
 									{formattedDate}
 								</p>
 								<p>{item.description}</p>
-								<button className='notify-btn'>Notify</button>
+								<button
+									className='notify-btn'
+									onClick={() => handleNotify(item.id, type)}
+								>
+									Notify
+								</button>
 							</div>
 						);
 					})

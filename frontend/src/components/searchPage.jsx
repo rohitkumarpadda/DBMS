@@ -5,7 +5,7 @@ import './SearchPage.css';
 const SearchPage = () => {
 	const [searchQuery, setSearchQuery] = useState('');
 	const [category, setCategory] = useState('electronics');
-	const [type, setType] = useState('all'); // New state for type filter
+	const [type, setType] = useState('all');
 	const [results, setResults] = useState([]);
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState(null);
@@ -13,11 +13,34 @@ const SearchPage = () => {
 	const fileInputRef = useRef(null);
 	const navigate = useNavigate();
 
+	const handleNotify = async (itemId, type) => {
+		try {
+			const response = await fetch('http://localhost:5000/api/notifyItem', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify({ itemId, type }),
+				credentials: 'include',
+			});
+
+			const data = await response.json();
+			if (response.ok) {
+				alert(data.message || 'Notification sent successfully!');
+			} else {
+				alert(data.error || 'Failed to send notification.');
+			}
+		} catch (error) {
+			console.error('Error sending notification:', error);
+			alert('An error occurred while sending the notification.');
+		}
+	};
+
 	const handleSearch = async (e) => {
 		e.preventDefault();
 
 		if (!searchQuery.trim() && !fileInputRef.current?.files?.length) {
-			setError('Please provide a search query or upload an image.');
+			setError('Please provide a search query, or upload an image.');
 			return;
 		}
 
@@ -28,7 +51,7 @@ const SearchPage = () => {
 			const formData = new FormData();
 			formData.append('description', searchQuery);
 			formData.append('category', category);
-			formData.append('type', type); // Include type in the request
+			formData.append('type', type);
 			if (fileInputRef.current?.files?.length) {
 				formData.append('image', fileInputRef.current.files[0]);
 			}
@@ -55,8 +78,10 @@ const SearchPage = () => {
 		}
 	};
 
-	const formatDate = (dateString) => {
-		return new Date(dateString).toLocaleDateString();
+	const handleRemoveImage = () => {
+		// Clear the file input and preview image
+		fileInputRef.current.value = null;
+		setPreviewImage(null);
 	};
 
 	return (
@@ -70,7 +95,7 @@ const SearchPage = () => {
 					<div id='aboutusnavbar2'>
 						<a href='/'>Home</a>
 						<a href='/AboutUs'>About Us</a>
-						<button id='homepagelogoutlink' onClick={() => navigate('/')}>
+						<button id='homepagelogoutlink' onClick={() => navigate('/Home')}>
 							Logout
 						</button>
 					</div>
@@ -124,6 +149,15 @@ const SearchPage = () => {
 								<label htmlFor='image-input' className='file-input-label'>
 									Upload Image
 								</label>
+								{previewImage && (
+									<button
+										type='button'
+										className='remove-image-button'
+										onClick={handleRemoveImage}
+									>
+										Remove Image
+									</button>
+								)}
 							</div>
 							<button type='submit' id='search-button'>
 								Search
@@ -175,19 +209,37 @@ const SearchPage = () => {
 											)}
 										</div>
 										<div className='card-body'>
-											<h4 className='item-title'>{item.item}</h4>
-											<span className='item-category'>{item.category}</span>
+											<h4 className='item-title'>
+												<strong></strong>Item:{item.item}
+											</h4>
+											<span className='item-category'>
+												<strong></strong>Category:{item.category}
+											</span>
 											<p className='item-date'>
 												{item.type === 'lost' ? 'Lost on' : 'Found on'}:{' '}
-												{formatDate(item.date)}
+												{new Date(item.date).toLocaleDateString()}
 											</p>
 											<p className='item-contact'>
-												<i className='fa fa-user'></i> {item.name}
+												<i className='fa fa-user'></i>
+												<strong></strong>Name: {item.name}
 											</p>
 											<p className='item-contact'>
-												<i className='fa fa-phone'></i> {item.contactNo}
+												<i className='fa fa-phone'></i>
+												<strong></strong>Contactinfo: {item.contactNo}
 											</p>
-											<p className='item-description'>{item.description}</p>
+											<p className='item-description'>
+												<strong></strong>Description:{item.description}
+											</p>
+											<p className='item-location'>
+												<i className='fa fa-map-marker'></i>
+												<strong></strong>Location: {item.location}
+											</p>
+											<button
+												id='cardbutton'
+												onClick={() => handleNotify(item.id, item.type)}
+											>
+												Notify
+											</button>
 										</div>
 									</div>
 								))
@@ -199,9 +251,6 @@ const SearchPage = () => {
 						</div>
 					)}
 				</main>
-			</div>
-			<div id='aboutusbottom'>
-				&copy; 2025 Your Company Name. All rights reserved
 			</div>
 		</>
 	);
